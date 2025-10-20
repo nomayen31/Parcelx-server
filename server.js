@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { MongoClient, ServerApiVersion } from "mongodb";
+import { MongoClient, ServerApiVersion ,ObjectId } from "mongodb";
 
 dotenv.config();
 
@@ -56,32 +56,54 @@ async function run() {
                 });
             }
         });
-        // 🟢 GET: Fetch all parcels or user-specific parcels (sorted by latest)
-        app.get("/parcels", async (req, res) => {
-            try {
-                const email = req.query.email;
-                const query = email ? { createdByEmail: email } : {};
+       // ✅ Keep only this one
+app.get("/parcels", async (req, res) => {
+    try {
+        const email = req.query.email;
+        console.log("🔍 Email filter:", email);
 
-                // Fetch parcels, newest first
-                const parcels = await parcelsCollection
-                    .find(query)
-                    .sort({ createdAt: -1 })
-                    .toArray();
+        const query = email ? { createdByEmail: email } : {};
+        console.log("🔍 MongoDB Query:", query);
 
-                res.status(200).json({
-                    success: true,
-                    total: parcels.length,
-                    data: parcels,
-                });
-            } catch (error) {
-                console.error("❌ Error fetching parcels:", error);
-                res.status(500).json({
-                    success: false,
-                    message: "Failed to fetch parcels.",
-                    error: error.message,
-                });
-            }
+        const parcels = await parcelsCollection
+            .find(query)
+            .sort({ createdAt: -1 })
+            .toArray();
+
+        res.status(200).json({
+            success: true,
+            total: parcels.length,
+            data: parcels,
         });
+    } catch (error) {
+        console.error("❌ Error fetching parcels:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch parcels.",
+            error: error.message,
+        });
+    }
+});
+
+       app.delete("/parcels/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    console.log("🗑️ Delete request for:", id);j
+
+    const result = await parcelsCollection.deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount > 0) {
+      res.send({ success: true, message: "Parcel deleted!", deletedCount: result.deletedCount });
+    } else {
+      res.status(404).send({ success: false, message: "Parcel not found!" });
+    }
+  } catch (error) {
+    console.error("❌ Delete error:", error);
+    res.status(500).send({ success: false, message: error.message });
+  }
+});
+
+
 
         app.get("/", (req, res) => {
             res.send(" ParcelX Server with MongoDB is Running...");
