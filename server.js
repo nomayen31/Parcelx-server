@@ -1,8 +1,7 @@
-// server.js
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { MongoClient, ServerApiVersion ,ObjectId } from "mongodb";
+import { MongoClient, ServerApiVersion, ObjectId } from "mongodb";
 
 dotenv.config();
 
@@ -31,10 +30,32 @@ async function run() {
         const parcelsCollection = db.collection("parcels");
 
         app.get("/parcels", async (req, res) => {
-            const parcels = await parcelsCollection.find().toArray();
-            res.send(parcels);
-        });
+            try {
+                const email = req.query.email;
+                console.log("🔍 Email filter:", email);
 
+                const query = email ? { createdByEmail: email } : {};
+                console.log("🔍 MongoDB Query:", query);
+
+                const parcels = await parcelsCollection
+                    .find(query)
+                    .sort({ createdAt: -1 })
+                    .toArray();
+
+                res.status(200).json({
+                    success: true,
+                    total: parcels.length,
+                    data: parcels, // Ensure this is an array
+                });
+            } catch (error) {
+                console.error("Error fetching parcels:", error);
+                res.status(500).json({
+                    success: false,
+                    message: "Failed to fetch parcels.",
+                    error: error.message,
+                });
+            }
+        });
 
         app.post("/parcels", async (req, res) => {
             const newParcel = req.body;
@@ -56,57 +77,56 @@ async function run() {
                 });
             }
         });
-       // ✅ Keep only this one
-app.get("/parcels", async (req, res) => {
-    try {
-        const email = req.query.email;
-        console.log("🔍 Email filter:", email);
 
-        const query = email ? { createdByEmail: email } : {};
-        console.log("🔍 MongoDB Query:", query);
+        app.delete("/parcels/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+                // Check if id is a valid ObjectId
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).send({ success: false, message: "Invalid ID format" });
+                }
+                console.log("🗑️ Delete request for:", id);
 
-        const parcels = await parcelsCollection
-            .find(query)
-            .sort({ createdAt: -1 })
-            .toArray();
+                const result = await parcelsCollection.deleteOne({ _id: new ObjectId(id) });
 
-        res.status(200).json({
-            success: true,
-            total: parcels.length,
-            data: parcels,
+                if (result.deletedCount > 0) {
+                    res.send({ success: true, message: "Parcel deleted!", deletedCount: result.deletedCount });
+                } else {
+                    res.status(404).send({ success: false, message: "Parcel not found!" });
+                }
+            } catch (error) {
+                console.error("❌ Delete error:", error);
+                res.status(500).send({ success: false, message: error.message });
+            }
         });
-    } catch (error) {
-        console.error("❌ Error fetching parcels:", error);
-        res.status(500).json({
-            success: false,
-            message: "Failed to fetch parcels.",
-            error: error.message,
+        app.get("/parcels/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                // Check if the ID is a valid ObjectId
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).send({ success: false, message: "Invalid ID format" });
+                }
+
+                // Fetch the parcel by its ID from MongoDB
+                const parcel = await parcelsCollection.findOne({ _id: new ObjectId(id) });
+
+                if (!parcel) {
+                    return res.status(404).send({ success: false, message: "Parcel not found" });
+                }
+
+                res.status(200).json({
+                    success: true,
+                    data: parcel,
+                });
+            } catch (error) {
+                console.error("Error fetching parcel by ID:", error);
+                res.status(500).send({ success: false, message: error.message });
+            }
         });
-    }
-});
-
-       app.delete("/parcels/:id", async (req, res) => {
-  try {
-    const id = req.params.id;
-    console.log("🗑️ Delete request for:", id);j
-
-    const result = await parcelsCollection.deleteOne({ _id: new ObjectId(id) });
-
-    if (result.deletedCount > 0) {
-      res.send({ success: true, message: "Parcel deleted!", deletedCount: result.deletedCount });
-    } else {
-      res.status(404).send({ success: false, message: "Parcel not found!" });
-    }
-  } catch (error) {
-    console.error("❌ Delete error:", error);
-    res.status(500).send({ success: false, message: error.message });
-  }
-});
-
-
 
         app.get("/", (req, res) => {
-            res.send(" ParcelX Server with MongoDB is Running...");
+            res.send("ParcelX Server with MongoDB is Running...");
         });
 
         app.listen(port, () => {
